@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # Service 1: The Web Bot (Responds to Twilio)
+  bot:
+    build: .
+    container_name: crypto_bot_web
+    restart: always
+    command: gunicorn -w 4 -b 0.0.0.0:5000 main:app
+    volumes:
+      - ./bot.db:/app/bot.db
+      - ./cex_ledger.db:/app/cex_ledger.db
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+
+  # Service 2: The Background Monitor (Checks Prices)
+  # ONLY add this if monitor.py has a 'while True' loop!
+  monitor:
+    build: .
+    container_name: crypto_bot_monitor
+    restart: always
+    # This runs the monitor script instead of Gunicorn
+    command: python monitor.py
+    volumes:
+      - ./bot.db:/app/bot.db
+      - ./cex_ledger.db:/app/cex_ledger.db
+    env_file:
+      - .env
+    # No ports needed for monitor, it just talks to the DB and external APIs

@@ -1,0 +1,23 @@
+# Security
+.env
+config.py
+*.key
+secrets.py
+
+# Python garbage
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Database (Never commit user data!)
+*.db
+*.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml

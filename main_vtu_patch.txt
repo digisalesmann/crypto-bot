@@ -1,0 +1,67 @@
+# Add this import at the top of main.py
+from services.vtu_service import VTUService
+
+# Add this block in the main user command router (after 'elif msg.startswith('transfer')')
+
+        # VTU Services
+        elif msg.startswith('vtu'):
+            parts = msg.split()
+            if len(parts) >= 2:
+                vtu_type = parts[1]
+                if vtu_type == 'airtime' and len(parts) == 5:
+                    # vtu airtime [phone] [amount] [network]
+                    phone = parts[2]
+                    try:
+                        amount = float(parts[3])
+                    except ValueError:
+                        response_text = '⚠️ Invalid amount.'
+                        resp.message(response_text)
+                        return str(resp)
+                    network = parts[4]
+                    response_text = VTUService.process_airtime_topup(user, phone, amount, network)
+                elif vtu_type == 'data' and len(parts) == 5:
+                    # vtu data [phone] [plan_id] [network]
+                    phone = parts[2]
+                    plan_id = parts[3]
+                    network = parts[4]
+                    response_text = VTUService.process_data_topup(user, phone, plan_id, network)
+                else:
+                    response_text = (
+                        '⚡ *VTU Services*\n'
+                        'Usage:\n'
+                        '`vtu airtime [phone] [amount] [network]`\n'
+                        '`vtu data [phone] [plan_id] [network]`'
+                    )
+            else:
+                response_text = (
+                    '⚡ *VTU Services*\n'
+                    'Usage:\n'
+                    '`vtu airtime [phone] [amount] [network]`\n'
+                    '`vtu data [phone] [plan_id] [network]`'
+                )
+
+# WhatsApp Gift Card Redemption & Admin Approval Guide
+
+## For Users
+1. To redeem a gift card, send:
+   redeem [giftcard_type] [code]
+   Example: redeem amazon ABCD-1234-EFGH
+2. After submitting, you may send a photo of the card as a follow-up message.
+3. Wait for admin review. You’ll be notified via WhatsApp when your card is approved and your wallet is credited, or if it’s rejected.
+
+## For Admins
+1. To view all pending gift card redemptions, send:
+   pending_giftcards
+2. To approve a redemption and credit the user’s wallet, send:
+   approve_giftcard [phone] [code] [amount]
+   Example: approve_giftcard 08012345678 ABCD-1234-EFGH 5000
+3. To reject a redemption, send:
+   reject_giftcard [phone] [code]
+   Example: reject_giftcard 08012345678 ABCD-1234-EFGH
+4. The bot will update the status and notify the user automatically.
+
+## Notes
+- All commands are sent via WhatsApp chat.
+- Only admins can approve or reject gift card redemptions.
+- Users must wait for admin review before wallet crediting.
+- For support, type: support [your message]

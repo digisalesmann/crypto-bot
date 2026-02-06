@@ -1,0 +1,8 @@
+flask
+twilio
+ccxt
+python-dotenv
+peewee
+schedule
+gunicorn
+python-dotenv
