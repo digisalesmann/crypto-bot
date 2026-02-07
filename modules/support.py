@@ -1,90 +1,120 @@
-from database import SupportTicket, User, db
+import datetime
 import random
 import string
+import config
+from database import db, Transaction # Assuming you store tickets in a similar table or a dedicated Ticket table
+from modules import notifications
 
-def create_ticket(user, msg):
-    """
-    Usage: support [message]
-    """
-    # Remove the word "support" from the message
-    clean_msg = msg.replace('support', '', 1).strip()
+def generate_ticket_id():
+    """Generates a unique reference like #SUP-A1B2"""
+    suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    return f"SUP-{suffix}"
+
+def handle_flow(user, msg, session):
+    step = session.get('step', 1)
+    cancel_words = ['cancel', 'exit', 'stop', 'abort']
     
-    if not clean_msg:
+    if msg.lower() in cancel_words:
+        return "❌ Support request cancelled. Type `menu` to restart.", session, True
+
+    # STEP 1: Category Selection
+    if step == 1:
+        session['step'] = 2
         return (
-            "⚠️ *Support Usage:*\n"
-            "Type `support [Your Issue]`\n\n"
-            "Example:\n"
-            "`support My deposit hasn't arrived`"
-        )
-        
-    SupportTicket.create(
-        user=user,
-        category='general',
-        message=clean_msg,
-        status='open'
-    )
-    
-    return (
-        "✅ *Ticket Created*\n"
-        "━━━━━━━━━━━━━━━━\n"
-        "Our team has received your request.\n"
-        "We usually reply within 24 hours.\n\n"
-        "Type `tickets` to check status."
-    )
-
-def get_my_tickets(user):
-    tickets = SupportTicket.select().where(SupportTicket.user == user).order_by(SupportTicket.created_at.desc()).limit(3)
-    
-    if not tickets:
-        return "📂 You have no open tickets."
-        
-    msg = "📂 *Your Support Tickets*\n━━━━━━━━━━━━━━━━\n"
-    for t in tickets:
-        status_emoji = "🟢" if t.status == 'open' else "🔴"
-        msg += f"{status_emoji} *ID {t.id}*: {t.message[:20]}...\n"
-        if t.admin_reply:
-            msg += f"   ↪️ *Reply:* {t.admin_reply}\n"
-    
-    return msg
-
-def security_center(user, msg):
-    """
-    Handles 'freeze', 'report', '2fa'
-    """
-    if 'freeze' in msg:
-        user.is_frozen = True
-        user.save()
-        return (
-            "❄️ *ACCOUNT FROZEN*\n"
+            "☎️ *PPAY Support Center*\n"
             "━━━━━━━━━━━━━━━━\n"
-            "✅ All withdrawals disabled.\n"
-            "✅ All trading disabled.\n\n"
-            "Your funds are safe. Please contact Admin via `support` to unfreeze."
-        )
-        
-    elif '2fa' in msg:
-        # Simulate a reset link
-        magic_link = "https://cex-bot.com/reset-2fa/" + ''.join(random.choices(string.ascii_letters, k=10))
-        return (
-            "🔐 *2FA Reset Request*\n"
-            "━━━━━━━━━━━━━━━━\n"
-            "Click the secure link below to reset your Two-Factor Authentication:\n\n"
-            f"{magic_link}\n\n"
-            "_(Link expires in 15 minutes)_"
-        )
-        
-    elif 'report' in msg:
-        return (
-            "🚨 *Report Activity*\n"
-            "Please describe the suspicious activity using:\n"
-            "`support [REPORT] details...`"
-        )
+            "What can we help you with today?\n\n"
+            "1. Deposit Issue\n"
+            "2. Withdrawal Issue\n"
+            "3. Swap/Trade Issue\n"
+            "4. Account/KYC\n"
+            "5. Other / General Inquiry\n\n"
+            "*Select a number (1-5):*"
+        ), session, False
 
-    return (
-        "🛡️ *Security Center*\n"
-        "━━━━━━━━━━━━━━━━\n"
-        "• `freeze` : ❄️ Lock Account instantly\n"
-        "• `2fa` : 🔐 Reset 2FA Keys\n"
-        "• `report` : 🚨 Report suspicious acts\n\n"
-        "💡 *Tip:* Never share your OTP with anyone."
-    )
+    # STEP 2: Description
+    elif step == 2:
+        categories = {
+            '1': 'DEPOSIT', '2': 'WITHDRAWAL', 
+            '3': 'SWAP', '4': 'ACCOUNT', '5': 'OTHER'
+        }
+        session['category'] = categories.get(msg.strip(), 'GENERAL')
+        session['step'] = 3
+        return (
+            f"📝 *Category: {session['category']}*\n"
+            "Please describe your issue in detail.\n\n"
+            "💡 *Tip:* Be specific (include amounts, dates, or transaction IDs) so we can help you faster."
+        ), session, False
+
+    # STEP 3: Image Proof (Optional)
+    elif step == 3:
+        session['description'] = msg.strip()
+        session['step'] = 4
+        return (
+            "📸 *Upload Proof (Optional)*\n"
+            "If you have a screenshot or receipt, please send it now.\n\n"
+            "Otherwise, type *'SKIP'* to submit your ticket."
+        ), session, False
+
+    # STEP 4: Review and Submit
+    elif step == 4:
+        # Check if the message contains an image (handled in main.py)
+        # If 'media_url' was injected into the session by main.py
+        image_status = "✅ Image Attached" if session.get('media_url') else "❌ No Image"
+        
+        # If they typed skip, we move on. If they sent an image, main.py already updated session.
+        if msg.lower() != 'skip' and not session.get('media_url'):
+            session['description'] += f"\n[Additional Info: {msg}]"
+
+        session['ticket_id'] = generate_ticket_id()
+        session['step'] = 5
+        
+        summary = (
+            "⚠️ *CONFIRM TICKET*\n"
+            "━━━━━━━━━━━━━━━━\n"
+            f"🆔 ID: {session['ticket_id']}\n"
+            f"📂 Category: {session['category']}\n"
+            f"📄 Issue: {session['description'][:100]}...\n"
+            f"🖼 Proof: {image_status}\n\n"
+            "Type *YES* to submit to our agents."
+        )
+        return summary, session, False
+
+    # STEP 5: Final Submission & Notification
+    elif step == 5:
+        if 'yes' in msg.lower():
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # 1. Log to Admin/Database (Example using a text log for simplicity)
+            # In a full production app, you would have a 'Ticket' model in database.py
+            log_entry = (
+                f"[{timestamp}] TICKET {session['ticket_id']}\n"
+                f"User: {user.phone}\nCategory: {session['category']}\n"
+                f"Description: {session['description']}\n"
+                f"Media: {session.get('media_url', 'None')}\n"
+                f"{'-'*30}\n"
+            )
+            
+            with open('logs/support_tickets.log', 'a', encoding='utf-8') as f:
+                f.write(log_entry)
+
+            # 2. Notify Admins
+            admin_alert = (
+                f"📩 *NEW SUPPORT TICKET*\n"
+                f"ID: {session['ticket_id']}\n"
+                f"User: {user.phone}\n"
+                f"Cat: {session['category']}"
+            )
+            from modules import notifications
+            import config
+            notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_alert)
+
+            return (
+                f"✅ *Ticket Submitted!*\n"
+                f"Your Reference ID is *{session['ticket_id']}*.\n\n"
+                "An agent will review your request and reply to you directly on WhatsApp within 24 hours."
+            ), session, True
+        else:
+            return "❌ Submission aborted.", session, True
+
+    return "❓ Unknown step. Type `menu`.", session, True

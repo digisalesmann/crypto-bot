@@ -1,3 +1,5 @@
+from modules import market
+import state_manager
 from database import Alert
 from modules import market
 
@@ -39,7 +41,7 @@ def create_alert(user, msg):
             condition=condition
         )
 
-        emoji = "📈" if condition == 'above' else "zz📉"
+        emoji = "📈" if condition == 'above' else "📉"
         return (
             f"🔔 *Strategic Alert Set*\n"
             "━━━━━━━━━━━━━━━━\n"
@@ -67,3 +69,62 @@ def get_my_alerts(user):
         msg += f"• *{a.symbol}*: {direction} `${a.target_price:,.2f}`\n"
     
     return msg
+
+def handle_alert_flow(user, msg, session):
+    step = session.get('step', 1)
+    cancel_words = ['cancel', 'exit', 'stop']
+    
+    if msg.lower() in cancel_words:
+        return "❌ Alert setup cancelled.", session, True
+
+    # STEP 1: Select Coin
+    if step == 1:
+        session['step'] = 2
+        return "🔔 *Set Price Alert*\nWhich coin do you want to monitor? (e.g., BTC, SOL, ETH)", session, False
+
+    # STEP 2: Input Target Price
+    elif step == 2:
+        coin = msg.strip().upper().replace("/", "")
+        if not coin.endswith("USDT"): coin += "USDT"
+        
+        current_price = market.fetch_raw_price(coin)
+        if not current_price:
+            return f"⚠️ Could not find market data for {coin}. Please try another symbol.", session, False
+            
+        session['coin'] = coin
+        session['current'] = current_price
+        session['step'] = 3
+        return (
+            f"📈 *Current {coin}:* `${current_price:,.2f}`\n\n"
+            "At what price should I notify you? (Enter the numeric value):"
+        ), session, False
+
+    # STEP 3: Confirm Logic
+    elif step == 3:
+        try:
+            target = float(msg.strip().replace(",", ""))
+            session['target'] = target
+            
+            # Auto-detect direction
+            direction = "above" if target > session['current'] else "below"
+            session['direction'] = direction
+            session['step'] = 4
+            
+            summary = (
+                f"🚀 *Confirm Alert*\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"Coin: {session['coin']}\n"
+                f"Notify when: *{direction}* `${target:,.2f}`\n\n"
+                "Type *YES* to activate."
+            )
+            return summary, session, False
+        except ValueError:
+            return "⚠️ Invalid amount. Please enter a number (e.g., 55000).", session, False
+
+    # STEP 4: Save and Close
+    elif step == 4:
+        if 'yes' in msg.lower():
+            # DB Logic: Alert.create(user=user, symbol=session['coin'], target_price=session['target'], condition=session['direction'])
+            Alert.create(user=user, symbol=session['coin'], target_price=session['target'], condition=session['direction'], is_active=True)
+            return f"✅ Alert activated! I'll ping you when {session['coin']} hits ${session['target']:,.2f}.", session, True
+        return "❌ Alert cancelled.", session, True

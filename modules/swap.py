@@ -1,69 +1,105 @@
-"""
-Swap module for handling asset swaps (crypto/fiat).
-"""
+from services.exchange import get_price
+from database import Wallet, Transaction, db
 
-def start_swap_session(user):
-    """Initialize a swap session for the user."""
-    return {
-        'step': 0,
-        'from_asset': None,
-        'to_asset': None,
-        'amount': None,
-        'rate': None,
-        'estimate': None
-    }
-
-
-def handle_swap_flow(user, msg, session, price_lookup):
-    """
-    Conversational swap flow handler.
-    - user: user object
-    - msg: incoming message (str)
-    - session: dict (swap session state)
-    - price_lookup: function(from_asset, to_asset) -> rate
-    Returns: (response_text, updated_session, done)
-    """
-    if session['step'] == 0:
-        session['step'] = 1
-        return ("Which asset do you want to swap from? (e.g. USDT, BTC, ETH)", session, False)
-    elif session['step'] == 1:
-        session['from_asset'] = msg.strip().upper()
+# modules/swap.py
+def handle_flow(user, msg, session):
+    step = session.get('step')
+    SUPPORTED_ASSETS = ['USDT', 'BTC', 'ETH', 'SOL', 'NGN']
+    if step == 1:
         session['step'] = 2
-        return ("Which asset do you want to swap to?", session, False)
-    elif session['step'] == 2:
-        session['to_asset'] = msg.strip().upper()
+        return "🔄 *Swap Assets*\nWhat are you swapping FROM? (USDT, BTC, ETH, SOL, NGN)", session, False
+
+    if step == 2:
+        asset_from = msg.upper().strip()
+        if asset_from not in SUPPORTED_ASSETS:
+            return (f"❌ Unsupported asset. Please choose from: {', '.join(SUPPORTED_ASSETS)}", session, False)
+        session['from'] = asset_from
         session['step'] = 3
-        return (f"How much {session['from_asset']} do you want to swap?", session, False)
-    elif session['step'] == 3:
+        return f"What are you swapping TO? (USDT, BTC, ETH, SOL, NGN)", session, False
+
+    if step == 3:
+        asset_to = msg.upper().strip()
+        if asset_to not in SUPPORTED_ASSETS:
+            return (f"❌ Unsupported asset. Please choose from: {', '.join(SUPPORTED_ASSETS)}", session, False)
+        if asset_to == session['from']:
+            return ("❌ You cannot swap to the same asset. Please choose a different asset.", session, False)
+        session['to'] = asset_to
+        session['step'] = 4
+        return f"How much {session['from']} are you swapping?", session, False
+
+    if step == 4:
         try:
-            amount = float(msg.replace(',', ''))
-            if amount <= 0:
-                return ("Amount must be greater than zero.", session, False)
-            session['amount'] = amount
-            # Get rate
-            rate = price_lookup(session['from_asset'], session['to_asset'])
-            if not rate:
-                return (f"No rate available for {session['from_asset']} to {session['to_asset']}.", session, True)
-            session['rate'] = rate
-            session['estimate'] = round(amount * rate, 8)
-            session['step'] = 4
-            summary = (
-                f"Swap {amount} {session['from_asset']} to {session['to_asset']}\n"
-                f"Rate: 1 {session['from_asset']} = {rate} {session['to_asset']}\n"
-                f"You will receive ≈ {session['estimate']} {session['to_asset']}\n"
-                "Type 'yes' to confirm or 'no' to cancel."
-            )
-            return (summary, session, False)
+            amt = float(msg)
+            if amt <= 0:
+                return ("❌ Amount must be positive.", session, False)
         except ValueError:
-            return ("Invalid amount. Please enter a number.", session, False)
-    elif session['step'] == 4:
-        if msg.strip().lower() in ['yes', 'y']:
-            # Here, you would process the swap (update balances, etc.)
-            session['step'] = 5
-            return (f"✅ Swap complete! {session['amount']} {session['from_asset']} swapped to {session['estimate']} {session['to_asset']}.", session, True)
-        elif msg.strip().lower() in ['no', 'n', 'cancel']:
-            return ("Swap cancelled.", session, True)
+            return ("❌ Please enter a valid numeric amount.", session, False)
+        from_asset = session['from']
+        to_asset = session['to']
+        # Use admin-set rates for NGN swaps, hybrid for other assets
+        from config import ADMIN_SWAP_RATE_BUY, ADMIN_SWAP_RATE_SELL
+        if from_asset == 'NGN' and to_asset == 'USDT':
+            rate = 1 / ADMIN_SWAP_RATE_BUY
+        elif from_asset == 'USDT' and to_asset == 'NGN':
+            rate = ADMIN_SWAP_RATE_SELL
+        elif from_asset == 'NGN' and to_asset in SUPPORTED_ASSETS and to_asset != 'USDT':
+            # NGN to other asset: NGN->USDT (admin rate), then USDT->asset (live rate)
+            try:
+                usdt_to_asset = get_price(f"{to_asset}/USDT")
+                rate = (1 / ADMIN_SWAP_RATE_BUY) * usdt_to_asset
+            except Exception:
+                return ("❌ Live rate unavailable for this pair.", session, True)
+        elif to_asset == 'NGN' and from_asset in SUPPORTED_ASSETS and from_asset != 'USDT':
+            # asset to NGN: asset->USDT (live rate), then USDT->NGN (admin rate)
+            try:
+                asset_to_usdt = get_price(f"{from_asset}/USDT")
+                rate = ADMIN_SWAP_RATE_SELL * asset_to_usdt
+            except Exception:
+                return ("❌ Live rate unavailable for this pair.", session, True)
         else:
-            return ("Please type 'yes' to confirm or 'no' to cancel.", session, False)
-    else:
-        return ("Unknown step. Type 'swap' to start again.", session, True)
+            try:
+                rate_from = get_price(f"{from_asset}/USDT")
+                rate_to = get_price(f"{to_asset}/USDT")
+                rate = rate_from / rate_to
+            except Exception:
+                return ("❌ Live rate unavailable for this pair.", session, True)
+        estimate = amt * rate
+        session['est'] = estimate
+        session['amt'] = amt
+        session['rate'] = rate
+        session['step'] = 5
+        return f"📊 *Estimate*\n{amt} {from_asset} ≈ {estimate:.2f} {to_asset}\nRate: {rate:.4f}\n\nConfirm? (Yes/No)", session, False
+
+    if step == 5:
+        if msg.strip().lower() == 'yes':
+            from_asset = session['from']
+            to_asset = session['to']
+            amt = session['amt']
+            estimate = session['est']
+            rate = session['rate']
+            try:
+                with db.atomic():
+                    from_wallet = Wallet.get(Wallet.user == user, Wallet.currency == from_asset)
+                    to_wallet, _ = Wallet.get_or_create(user=user, currency=to_asset, defaults={'balance': 0.0})
+                    if from_wallet.balance < amt:
+                        return (f"❌ Insufficient {from_asset} balance.", session, True)
+                    from_wallet.balance -= amt
+                    to_wallet.balance += estimate
+                    from_wallet.save()
+                    to_wallet.save()
+                    Transaction.create(user=user, type='SWAP', currency=from_asset, amount=-amt, status='completed', tx_hash=f"SWAP->{to_asset}")
+                    Transaction.create(user=user, type='SWAP', currency=to_asset, amount=estimate, status='completed', tx_hash=f"SWAP<-{from_asset}")
+                # Notify Admin
+                from modules import notifications
+                import config
+                admin_msg = f"🔄 *Swap Completed*\nUser: {user.phone}\n{amt} {from_asset} → {estimate:.2f} {to_asset}\nRate: {rate:.4f}"
+                notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_msg)
+                return (f"✅ Swap Complete!\n{amt} {from_asset} → {estimate:.2f} {to_asset}\nRate: {rate:.4f}", session, True)
+            except Wallet.DoesNotExist:
+                return (f"❌ You do not have a {from_asset} wallet.", session, True)
+            except Exception as e:
+                return (f"❌ Swap failed: {e}", session, True)
+        elif msg.strip().lower() == 'no':
+            return ("❌ Swap cancelled.", session, True)
+        else:
+            return ("❓ Please reply with 'Yes' to confirm or 'No' to cancel.", session, False)

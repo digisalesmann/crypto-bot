@@ -59,6 +59,7 @@ class VTUApiClient:
         return response.json()
 
     def get_data_variations(self, service_id=None):
+        # Corrected endpoint and parameter for VTU.ng API v2
         url = f"{API_URL}variations/data"
         if service_id:
             url += f"?service_id={service_id}"
@@ -155,6 +156,62 @@ class VTUApiClient:
             hashlib.sha256
         ).hexdigest()
         return hmac.compare_digest(computed_signature, signature)
+
+    def get_data_plan_price(self, provider, plan):
+        """
+        Fetch the live price and variation_id for a data plan from vtu.ng for the given provider and plan.
+        provider: 'MTN', 'Airtel', 'Glo', '9mobile'
+        plan: e.g. '500MB', '1GB', '2GB', '5GB'
+        Returns: (price as int, variation_id as str) or (None, None) if not found
+        """
+        provider_service_ids = {
+            'MTN': 'mtn',
+            'Airtel': 'airtel',
+            'Glo': 'glo',
+            '9mobile': '9mobile',
+        }
+        service_id = provider_service_ids.get(provider)
+        if not service_id:
+            return None, None
+        try:
+            client = VTUApiClient()
+            variations = client.get_data_variations(service_id)
+            for v in variations.get('data', []):
+                if plan.lower() in v.get('data_plan', '').lower() and v.get('availability', '').lower() == 'available':
+                    price = int(float(v.get('price', 0)))
+                    variation_id = str(v.get('variation_id'))
+                    return price, variation_id
+        except Exception as e:
+            print(f"[VTU] Error fetching data plan price: {e}")
+            return None, None
+        return None, None
+
+def get_data_plan_price(provider, plan):
+    """
+    Fetch the live price and variation_id for a data plan from vtu.ng for the given provider and plan.
+    Returns: (price as int, variation_id as str) or (None, None) if not found
+    """
+    provider_service_ids = {
+        'MTN': 'mtn',
+        'Airtel': 'airtel',
+        'Glo': 'glo',
+        '9mobile': '9mobile',
+    }
+    service_id = provider_service_ids.get(provider)
+    if not service_id:
+        return None, None
+    try:
+        client = VTUApiClient()
+        variations = client.get_data_variations(service_id)
+        for v in variations.get('data', []):
+            if plan.lower() in v.get('data_plan', '').lower() and v.get('availability', '').lower() == 'available':
+                price = int(float(v.get('price', 0)))
+                variation_id = str(v.get('variation_id'))
+                return price, variation_id
+    except Exception as e:
+        print(f"[VTU] Error fetching data plan price: {e}")
+        return None, None
+    return None, None
 
 # Example usage:
 # vtu_client = VTUApiClient()
