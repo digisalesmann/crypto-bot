@@ -88,8 +88,8 @@ def handle_flow(user, msg, session):
                 rate_usdt_asset = get_price_with_fallback('USDT', to_asset)
                 if rate_usdt_asset is None or rate_usdt_asset == 0:
                     return (f"❌ Unable to fetch rate for USDT to {to_asset}.", session, True)
-                estimate = amt_usdt * rate_usdt_asset
-                rate = rate_ngn_usdt * rate_usdt_asset
+                estimate = amt_usdt / rate_usdt_asset
+                rate = rate_ngn_usdt / rate_usdt_asset
             elif to_asset == 'NGN' and from_asset in SUPPORTED_ASSETS and from_asset != 'USDT':
                 asset_to_usdt = get_price_with_fallback(from_asset, 'USDT')
                 rate = ADMIN_SWAP_RATE_SELL * asset_to_usdt
