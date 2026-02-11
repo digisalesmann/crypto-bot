@@ -3,8 +3,13 @@ from database import Wallet, Transaction, db
 
 # modules/swap.py
 def handle_flow(user, msg, session):
+    # Block if account is frozen
+    if getattr(user, 'is_frozen', False):
+        return ("❄️ Your account is currently frozen. Swaps are disabled. Contact support to unfreeze.", session, True)
+
     step = session.get('step')
     SUPPORTED_ASSETS = ['USDT', 'BTC', 'ETH', 'SOL', 'NGN']
+
     if step == 1:
         session['step'] = 2
         return "🔄 *Swap Assets*\nWhat are you swapping FROM? (USDT, BTC, ETH, SOL, NGN)", session, False
@@ -38,37 +43,77 @@ def handle_flow(user, msg, session):
         to_asset = session['to']
         # Use admin-set rates for NGN swaps, hybrid for other assets
         from config import ADMIN_SWAP_RATE_BUY, ADMIN_SWAP_RATE_SELL
-        if from_asset == 'NGN' and to_asset == 'USDT':
-            rate = 1 / ADMIN_SWAP_RATE_BUY
-        elif from_asset == 'USDT' and to_asset == 'NGN':
-            rate = ADMIN_SWAP_RATE_SELL
-        elif from_asset == 'NGN' and to_asset in SUPPORTED_ASSETS and to_asset != 'USDT':
-            # NGN to other asset: NGN->USDT (admin rate), then USDT->asset (live rate)
+        # CoinGecko fallback
+        from services.coingecko_price import CoinGeckoPriceService
+        cg = CoinGeckoPriceService()
+        import time
+        def get_price_with_fallback(from_asset, to_asset, timeout=60):
+            import time
+            start = time.time()
+            pair = f"{to_asset}/USDT" if from_asset == 'USDT' else f"{from_asset}/USDT"
             try:
-                usdt_to_asset = get_price(f"{to_asset}/USDT")
-                rate = (1 / ADMIN_SWAP_RATE_BUY) * usdt_to_asset
+                return get_price(pair)
             except Exception:
-                return ("❌ Live rate unavailable for this pair.", session, True)
-        elif to_asset == 'NGN' and from_asset in SUPPORTED_ASSETS and from_asset != 'USDT':
-            # asset to NGN: asset->USDT (live rate), then USDT->NGN (admin rate)
-            try:
-                asset_to_usdt = get_price(f"{from_asset}/USDT")
+                # Try CoinGecko
+                base = to_asset if from_asset == 'USDT' else from_asset
+                quote = 'usdt'
+                price = None
+                try:
+                    price = cg.get_price(base, quote)
+                except Exception as e:
+                    print(f"[SWAP][CoinGecko] Error: {e}")
+                if price is None and quote == 'usdt':
+                    try:
+                        price = cg.get_price(base, 'usd')
+                    except Exception as e:
+                        print(f"[SWAP][CoinGecko] USD fallback error: {e}")
+                if price is None or price == {}:
+                    elapsed = time.time() - start
+                    if elapsed > timeout:
+                        raise Exception('Rate fetch timed out')
+                    raise Exception('No price found for this pair')
+                return price
+
+        try:
+            if from_asset == 'NGN' and to_asset == 'USDT':
+                rate = 1 / ADMIN_SWAP_RATE_BUY
+                estimate = amt * rate
+            elif from_asset == 'USDT' and to_asset == 'NGN':
+                rate = ADMIN_SWAP_RATE_SELL
+                estimate = amt * rate
+            elif from_asset == 'NGN' and to_asset in SUPPORTED_ASSETS and to_asset != 'USDT':
+                # NGN to other asset: NGN->USDT (admin rate), then USDT->asset (live rate)
+                rate_ngn_usdt = 1 / ADMIN_SWAP_RATE_BUY
+                amt_usdt = amt * rate_ngn_usdt
+                rate_usdt_asset = get_price_with_fallback('USDT', to_asset)
+                if rate_usdt_asset is None or rate_usdt_asset == 0:
+                    return (f"❌ Unable to fetch rate for USDT to {to_asset}.", session, True)
+                estimate = amt_usdt * rate_usdt_asset
+                rate = rate_ngn_usdt * rate_usdt_asset
+            elif to_asset == 'NGN' and from_asset in SUPPORTED_ASSETS and from_asset != 'USDT':
+                asset_to_usdt = get_price_with_fallback(from_asset, 'USDT')
                 rate = ADMIN_SWAP_RATE_SELL * asset_to_usdt
-            except Exception:
-                return ("❌ Live rate unavailable for this pair.", session, True)
-        else:
-            try:
-                rate_from = get_price(f"{from_asset}/USDT")
-                rate_to = get_price(f"{to_asset}/USDT")
+                estimate = amt * rate
+            elif from_asset == 'USDT':
+                rate = get_price_with_fallback('USDT', to_asset)
+                estimate = amt / rate
+            elif to_asset == 'USDT':
+                rate = get_price_with_fallback(from_asset, 'USDT')
+                estimate = amt * rate
+            else:
+                # For asset-to-asset swaps (e.g., BTC to ETH):
+                rate_from = get_price_with_fallback(from_asset, 'USDT')
+                rate_to = get_price_with_fallback(to_asset, 'USDT')
+                usdt_amt = amt * rate_from
+                estimate = usdt_amt / rate_to
                 rate = rate_from / rate_to
-            except Exception:
-                return ("❌ Live rate unavailable for this pair.", session, True)
-        estimate = amt * rate
+        except Exception:
+            return ("❌ Live rate unavailable for this pair.", session, True)
         session['est'] = estimate
         session['amt'] = amt
         session['rate'] = rate
         session['step'] = 5
-        return f"📊 *Estimate*\n{amt} {from_asset} ≈ {estimate:.2f} {to_asset}\nRate: {rate:.4f}\n\nConfirm? (Yes/No)", session, False
+        return f"📊 *Estimate*\n{amt} {from_asset} ≈ {estimate:.8f} {to_asset}\nRate: {rate:.4f}\n\nConfirm? (Yes/No)", session, False
 
     if step == 5:
         if msg.strip().lower() == 'yes':

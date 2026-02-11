@@ -5,9 +5,13 @@ import config
 from modules import notifications
 
 def handle_flow(user, msg, session):
+    # Block if account is frozen
+    if getattr(user, 'is_frozen', False):
+        return ("❄️ Your account is currently frozen. Giftcard redemption is disabled. Contact support to unfreeze.", session, True)
+
     step = session.get('step', 1)
     cancel_words = ['cancel', 'exit', 'stop', 'abort']
-    
+
     if msg.lower() in cancel_words:
         return "❌ Redemption cancelled. Type `menu` to restart.", session, True
 
@@ -18,7 +22,7 @@ def handle_flow(user, msg, session):
             "🎁 *Gift Card Redemption*\n"
             "━━━━━━━━━━━━━━━━\n"
             "What type of card are you redeeming?\n"
-            "_(e.g., Amazon, Steam, iTunes, Sephora)_", 
+            "_(e.g., Amazon, Steam, iTunes, Sephora)_",
             session, False
         )
 
@@ -35,7 +39,7 @@ def handle_flow(user, msg, session):
         return (
             "📑 *Select Card Mode:*\n"
             "1. Physical Card (Picture)\n"
-            "2. E-code (Text only)", 
+            "2. E-code (Text only)",
             session, False
         )
 
@@ -79,24 +83,43 @@ def handle_flow(user, msg, session):
         if 'yes' in msg.lower():
             timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             log_path = 'logs/giftcard_redemptions.log'
-            
+
             # Create logs directory if it doesn't exist
             os.makedirs('logs', exist_ok=True)
-            
+
             # Log format: Phone, Type, Code, Status, Time, Country, Amount, Mode
             with open(log_path, 'a', encoding='utf-8', newline='') as f:
                 writer = csv.writer(f, delimiter='\t')
                 writer.writerow([
-                    user.phone, session['card_type'], session['code'], 
-                    'PENDING', timestamp, session['country'], 
+                    user.phone, session['card_type'], session['code'],
+                    'PENDING', timestamp, session['country'],
                     session['amount'], session['mode']
                 ])
 
+            # Create Transaction record for admin tracking
+            from database import Transaction, db
+            try:
+                with db.atomic():
+                    Transaction.create(
+                        user=user,
+                        type='GIFTCARD',
+                        currency=session.get('country', 'N/A'),
+                        amount=float(session.get('amount', 0)),
+                        status='pending',
+                        tx_hash=session.get('code', '')
+                    )
+            except Exception as e:
+                notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), f"Giftcard DB log error: {e}")
+
+            image_info = "\n📸 Image: Attached" if session.get('image') else "\n📸 Image: None"
+            region_info = f"Region: {session.get('country', 'N/A')}\n"
             admin_alert = (
                 f"🚨 *NEW GIFT CARD ALERT*\n"
                 f"User: {user.phone}\n"
                 f"Card: {session['card_type']} ({session['amount']})\n"
+                f"{region_info}"
                 f"Code: {session['code']}"
+                f"{image_info}"
             )
             notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_alert)
             return (

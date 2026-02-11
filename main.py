@@ -11,7 +11,7 @@ import state_manager
 from database import User
 
 # 2. Import Modules (Ensure these files exist in /modules)
-from modules import wallet, swap, deposit, vtu, giftcard, support, help_menu, admin, security, market, alerts, fiat
+from modules import wallet, swap, deposit, vtu, giftcard, support, help_menu, admin, security, market, alerts, fiat, onboarding, referral
 
 app = Flask(__name__)
 
@@ -34,13 +34,19 @@ def bot():
     
     # 3. GET/CREATE USER
     user, _ = User.get_or_create(phone=sender)
-    
+
+    resp = MessagingResponse()
+    response_text = ""
+
+    # Onboarding flow for new users
+    if getattr(user, 'onboarding_status', None) != 'active':
+        response_text, finished = onboarding.handle_flow(user, incoming_msg)
+        resp.message(response_text)
+        return str(resp)
+
     # Identify Admin Status
     admin_list = [p.strip() for p in config.OWNER_PHONE.split(',')]
     is_admin = sender in admin_list
-    
-    resp = MessagingResponse()
-    response_text = ""
 
     # --- B. GLOBAL EXIT LOGIC ---
     if msg in ['exit', 'cancel', 'stop', 'abort']:
@@ -49,14 +55,110 @@ def bot():
         return str(resp)
 
     # --- C. ADMIN PRIORITY ROUTING ---
-    if is_admin and (
-        msg in ['admin', 'users', 'withdrawals', 'tickets'] or 
-        msg.startswith(('credit', 'approve', 'reply', 'approve_giftcard'))
-    ):
-        response_text = admin.handle_admin_commands(msg)
-        if response_text:
+    # Step-by-step admin credit/approve flows
+    if is_admin:
+        # Admin credit flow
+        admin_credit_session = state_manager.get_session(sender, 'admin_credit')
+        if (msg == 'credit' and not admin_credit_session) or admin_credit_session:
+            if msg == 'credit':
+                state_manager.clear_session(sender, 'admin_credit')
+                session = {'step': 1}
+            else:
+                session = admin_credit_session or {'step': 1}
+            response_text, session, done = admin.handle_credit_flow(user, incoming_msg, session)
+            if done:
+                state_manager.clear_session(sender, 'admin_credit')
+            else:
+                state_manager.set_session(sender, 'admin_credit', session)
             resp.message(response_text)
             return str(resp)
+        # Admin approve flow
+        admin_approve_session = state_manager.get_session(sender, 'admin_approve')
+        if (msg == 'approve' and not admin_approve_session) or admin_approve_session:
+            if msg == 'approve':
+                state_manager.clear_session(sender, 'admin_approve')
+                session = {'step': 1}
+            else:
+                session = admin_approve_session or {'step': 1}
+            response_text, session, done = admin.handle_approve_flow(user, incoming_msg, session)
+            if done:
+                state_manager.clear_session(sender, 'admin_approve')
+            else:
+                state_manager.set_session(sender, 'admin_approve', session)
+            resp.message(response_text)
+            return str(resp)
+        # Admin reply flow
+        admin_reply_session = state_manager.get_session(sender, 'admin_reply')
+        if (msg == 'reply' and not admin_reply_session) or admin_reply_session:
+            if msg == 'reply':
+                state_manager.clear_session(sender, 'admin_reply')
+                session = {'step': 1}
+            else:
+                session = admin_reply_session or {'step': 1}
+            response_text, session, done = admin.handle_reply_flow(user, incoming_msg, session)
+            if done:
+                state_manager.clear_session(sender, 'admin_reply')
+            else:
+                state_manager.set_session(sender, 'admin_reply', session)
+            resp.message(response_text)
+            return str(resp)
+        # Admin broadcast flow
+        admin_broadcast_session = state_manager.get_session(sender, 'admin_broadcast')
+        if (msg == 'broadcast' and not admin_broadcast_session) or admin_broadcast_session:
+            if msg == 'broadcast':
+                state_manager.clear_session(sender, 'admin_broadcast')
+                session = {'step': 1}
+            else:
+                session = admin_broadcast_session or {'step': 1}
+            response_text, session, done = admin.handle_broadcast_flow(user, incoming_msg, session)
+            if done:
+                state_manager.clear_session(sender, 'admin_broadcast')
+            else:
+                state_manager.set_session(sender, 'admin_broadcast', session)
+            resp.message(response_text)
+            return str(resp)
+        # Admin approve giftcard flow
+        admin_approve_giftcard_session = state_manager.get_session(sender, 'approve giftcard')
+        if (msg == 'approve giftcard' and not admin_approve_giftcard_session) or admin_approve_giftcard_session:
+            if msg == 'approve giftcard':
+                state_manager.clear_session(sender, 'approve giftcard')
+                session = {'step': 1}
+            else:
+                session = admin_approve_giftcard_session or {'step': 1}
+            response_text, session, done = admin.handle_approve_giftcard_flow(user, incoming_msg, session)
+            if done:
+                state_manager.clear_session(sender, 'approve giftcard')
+            else:
+                state_manager.set_session(sender, 'approve giftcard', session)
+            resp.message(response_text)
+            return str(resp)
+
+        # Admin unfreeze flow
+        admin_unfreeze_session = state_manager.get_session(sender, 'unfreeze')
+        if (msg == 'unfreeze' and not admin_unfreeze_session) or admin_unfreeze_session:
+            if msg == 'unfreeze':
+                state_manager.clear_session(sender, 'unfreeze')
+                session = {'step': 1}
+            else:
+                session = admin_unfreeze_session or {'step': 1}
+            response_text, session, done = admin.handle_unfreeze_flow(user, incoming_msg, session)
+            if done:
+                state_manager.clear_session(sender, 'unfreeze')
+            else:
+                state_manager.set_session(sender, 'unfreeze', session)
+            resp.message(response_text)
+            return str(resp)
+
+        # Fallback to legacy admin commands for other admin features
+        if msg in ['admin', 'help', 'users', 'withdrawals', 'tickets', 'deposits', 'gift']:
+            response = admin.handle_admin_commands(msg, user=user)
+            if isinstance(response, tuple):
+                response_text = response[0]
+            else:
+                response_text = response
+            if response_text:
+                resp.message(response_text)
+                return str(resp)
 
     # --- D. MASTER SESSION ROUTER (Multi-Step Flows) ---
     active_flow = None
@@ -145,6 +247,8 @@ def bot():
             response_text = market.get_top_gainers()
         elif msg in ['otc', 'p2p', 'fiat']:
             response_text = fiat.get_fiat_dashboard(user)
+        elif msg in ['referral', 'myreferral']:
+            response_text = referral.get_referral_dashboard(user)
         else:
             response_text = "❓ Unknown command. Type `menu` to see what I can do for you."
 

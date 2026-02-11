@@ -28,7 +28,7 @@ def get_fiat_dashboard(user):
         "━━━━━━━━━━━━━━━━\n\n"
         "💡 *How to Trade:*\n"
         "• Type `swap` to start an instant conversion.\n"
-        "• Type `deposit bank` to fund your NGN wallet."
+        "• Type `deposit` to fund your NGN wallet."
     )
     return msg
 
