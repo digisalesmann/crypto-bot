@@ -2,31 +2,31 @@ import datetime
 
 def admin_menu():
     return (
-        "🛡️ *ADMIN DASHBOARD*\n"
+        "*ADMIN DASHBOARD*\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "👤 *User Management*\n"
-        "  1. users: List all users\n"
-        "  2. credit: Credit user\n"
-        "  3. unfreeze: Unfreeze a user account\n"
+        "*User Management*\n"
+        "• users: List all users\n"
+        "• credit: Credit user\n"
+        "• unfreeze: Unfreeze a user account\n"
         "\n"
-        "💸 *Withdrawals & Deposits*\n"
-        "  4. withdrawals: Pending withdrawals\n"
-        "  5. deposits: Pending deposits\n"
-        "  6. approve: Approve withdrawal\n"
+        "*Withdrawals & Deposits*\n"
+        "• withdrawals: Pending withdrawals\n"
+        "• deposits: Pending deposits\n"
+        "• approve: Approve withdrawal\n"
         "\n"
-        "🎁 *Giftcards*\n"
-        "  7. gift: Pending giftcards\n"
-        "  8. approve giftcard: Approve or reject giftcard\n"
+        "*Giftcards*\n"
+        "• gift: Pending giftcards\n"
+        "• approve giftcard: Approve or reject giftcard\n"
         "\n"
-        "📢 *Communication*\n"
-        "  9. broadcast: Send broadcast\n"
-        " 10. tickets: Open support tickets\n"
-        " 11. reply: Reply to ticket\n"
+        "*Communication*\n"
+        "• broadcast: Send broadcast\n"
+        "• tickets: Open support tickets\n"
+        "• reply: Reply to ticket\n"
         "\n"
-        "❓ *Menu/Help*\n"
-        " 12. admin: Show this menu\n"
-        " 13. help: Show this menu\n"
+        "*Menu/Help*\n"
+        "• admin: Show this menu\n"
+        "• help: Show this menu\n"
     )
 
 def get_pending_deposits():
@@ -68,10 +68,10 @@ def get_pending_deposits():
         elif tx.type == 'CRYPTO_DEPOSIT':
             method = 'Crypto'
             asset = tx.currency
-        msg += f"ID `{tx.id}` | {tx.user.phone}\n"
+        msg += f"ID {tx.id} | {tx.user.phone}\n"
         msg += f"Amount: {tx.amount:,.2f} {asset} ({method})\n"
-        msg += f"Reference: `{tx.tx_hash}`\n\n"
-    msg += "Approve: `approve_deposit [ID] [REF]`"
+        msg += f"Reference: {tx.tx_hash}\n\n"
+    msg += "Approve: approve deposit [ID] [REF]"
     return msg
 def get_pending_giftcards():
     """Lists pending giftcard redemptions."""
@@ -83,10 +83,10 @@ def get_pending_giftcards():
         return "*Giftcard Desk:* No pending giftcard redemptions."
     msg = "*PENDING GIFTCARDS*\n━━━━━━━━━━━━━━━━\n"
     for tx in pending:
-        msg += f"ID `{tx.id}` | {tx.user.phone}\n"
+        msg += f"ID {tx.id} | {tx.user.phone}\n"
         msg += f"Amount: {tx.amount:,.2f} {tx.currency}\n"
-        msg += f"Reference: `{tx.tx_hash}`\n\n"
-    msg += "Approve: `approve_giftcard [ID] [REF]`"
+        msg += f"Reference: {tx.tx_hash}\n\n"
+    msg += "Approve: approve giftcard [ID] [REF]"
     return msg
 def handle_approve_giftcard_flow(user, msg, session):
     step = session.get('step', 1)
@@ -143,7 +143,7 @@ def handle_approve_giftcard_flow(user, msg, session):
                 notifications.send_push(tx.user, approved_msg)
             except Exception as notify_err:
                 log_admin_action(admin_phone, f"Giftcard approval notification failed for user {tx.user.phone}: {notify_err}")
-            return (f"✅ Giftcard `{tx_id}` successfully approved.", session, True)
+            return (f"✅ Giftcard {tx_id} successfully approved.", session, True)
         elif msg_clean == 'reject':
             session['step'] = 5
             return ("Please enter a reason for rejecting this giftcard:", session, False)
@@ -177,7 +177,7 @@ def handle_approve_giftcard_flow(user, msg, session):
             notifications.send_push(tx.user, reject_msg)
         except Exception as notify_err:
             log_admin_action(admin_phone, f"Giftcard rejection notification failed for user {tx.user.phone}: {notify_err}")
-        return (f"❌ Giftcard `{tx_id}` rejected and user notified.", session, True)
+        return (f"❌ Giftcard {tx_id} rejected and user notified.", session, True)
     else:
         return ("❓ Unknown step. Type CANCEL to abort.", session, False)
 def handle_broadcast_flow(user, msg, session):
@@ -250,7 +250,7 @@ def handle_reply_flow(user, msg, session):
             ticket.save()
             log_admin_action(admin_phone, f"Replied to ticket {ticket_id}: {reply_msg[:30]}")
             notifications.send_ticket_reply(ticket.user, reply_msg)
-            return (f"✅ Ticket `{ticket_id}` replied.", session, True)
+            return (f"✅ Ticket {ticket_id} replied.", session, True)
         else:
             return ("❌ Reply process cancelled.", session, True)
     else:
@@ -313,7 +313,7 @@ def handle_approve_flow(user, msg, session):
             log_admin_action(admin_phone, f"Approved {approve_type} ID {tx_id} with Ref {ref if ref else 'N/A'}")
             if approve_type == 'withdrawal':
                 notifications.send_withdrawal_processed(tx.user, tx.amount, tx.currency, ref)
-                return (f"✅ Withdrawal `{tx_id}` successfully approved.", session, True)
+                return (f"✅ Withdrawal {tx_id} successfully approved.", session, True)
             else:
                 # For deposit, update wallet balance automatically
                 from modules import wallet
@@ -322,7 +322,7 @@ def handle_approve_flow(user, msg, session):
                 wallet_obj.balance += tx.amount
                 wallet_obj.save()
                 notifications.send_deposit_confirmation(tx.user, tx.amount, tx.currency)
-                return (f"✅ Deposit `{tx_id}` successfully approved and user credited. New Balance: {wallet_obj.balance:,.2f} {tx.currency}.", session, True)
+                return (f"✅ Deposit {tx_id} successfully approved and user credited. New Balance: {wallet_obj.balance:,.2f} {tx.currency}.", session, True)
         elif msg_clean == 'reject':
             session['step'] = 6
             return ("Please enter a reason for rejecting this deposit:", session, False)
@@ -355,7 +355,7 @@ def handle_approve_flow(user, msg, session):
             notifications.send_push(tx.user, reject_msg)
         except Exception as notify_err:
             log_admin_action(admin_phone, f"Deposit rejection notification failed for user {tx.user.phone}: {notify_err}")
-        return (f"❌ Deposit `{tx_id}` rejected and user notified.", session, True)
+        return (f"❌ Deposit {tx_id} rejected and user notified.", session, True)
     else:
         return ("❓ Unknown step. Type CANCEL to abort.", session, False)
 def handle_credit_flow(user, msg, session):
@@ -462,7 +462,7 @@ def get_all_users():
     # Show last 10 for brevity in WhatsApp, or list all if small
     for u in users.order_by(User.id.desc()).limit(20):
         status = "❄️" if u.is_frozen else "✅"
-        report += f"{status} `{u.id}` | {u.phone} (Lvl {u.kyc_level})\n"
+        report += f"{status} {u.id} | {u.phone} (Lvl {u.kyc_level})\n"
     
     if total_users > 20:
         report += f"\n_...and {total_users - 20} more users._"
@@ -476,7 +476,7 @@ def credit_user(msg, admin_phone):
     try:
         parts = msg.split()
         if len(parts) < 4:
-            return "⚠️ Usage: `credit <PHONE> <AMOUNT> <CURRENCY>`"
+            return "⚠️ Usage: credit <PHONE> <AMOUNT> <CURRENCY>"
 
         target_phone = parts[1]
         amount = float(parts[2])
@@ -541,16 +541,16 @@ def get_pending_withdrawals():
         c_emoji = "🇳🇬" if tx.currency == "NGN" else "🪙"
         
         # Header with Ticket ID and relative time
-        msg += f"📦 *TICKET #{tx.id}* — ⏳ `{time_display}`\n"
+        msg += f"📦 *TICKET #{tx.id}* — ⏳ {time_display}\n"
         msg += f"━━━━━━━━━━━━━━━━\n"
         msg += f"👤 *USER:* {tx.user.phone}\n"
-        msg += f"💰 *AMT:* {c_emoji} `{tx.amount:,.2f} {tx.currency}`\n"
-        msg += f"📍 *DEST:* `{tx.tx_hash}`\n"
+        msg += f"💰 *AMT:* {c_emoji} {tx.amount:,.2f} {tx.currency}\n"
+        msg += f"📍 *DEST:* {tx.tx_hash}\n"
         msg += f"────────────────\n\n" 
         
     msg += "📑 *ACTIONS:*\n"
-    msg += "• Reply `approve [ID] [REF]` to finalize.\n"
-    msg += "• Reply `reject [ID] [REASON]` to cancel."
+    msg += "• Reply approve [ID] [REF] to finalize.\n"
+    msg += "• Reply reject [ID] [REASON] to cancel."
     
     return msg
 
@@ -559,7 +559,7 @@ def approve_withdrawal(msg, admin_phone):
     try:
         parts = msg.split()
         if len(parts) < 3:
-            return "⚠️ Usage: `approve [ID] [TX_HASH/REF]`"
+            return "⚠️ Usage: approve [ID] [TX_HASH/REF]"
 
         tx_id = parts[1]
         ref = " ".join(parts[2:]) 
@@ -579,7 +579,7 @@ def approve_withdrawal(msg, admin_phone):
         log_admin_action(admin_phone, f"Approved withdrawal ID {tx_id} with Ref {ref}")
         notifications.send_withdrawal_processed(tx.user, tx.amount, tx.currency, ref)
         
-        return f"✅ Withdrawal `{tx_id}` successfully approved."
+        return f"✅ Withdrawal {tx_id} successfully approved."
     except Exception as e:
         return f"⚠️ Error: {str(e)}"
 
@@ -588,7 +588,7 @@ def send_broadcast(msg, admin_phone):
     announcement = msg.replace('broadcast', '', 1).strip()
     
     if not announcement:
-        return "⚠️ Usage: `broadcast [Message]`"
+        return "⚠️ Usage: broadcast [Message]"
 
     # Production safety: Confirm if message is too short
     if len(announcement) < 10:
@@ -607,9 +607,9 @@ def get_open_tickets():
     
     msg = "📩 *OPEN TICKETS*\n━━━━━━━━━━━━━━━━\n"
     for t in tickets:
-        msg += f"🆔 `{t.id}` | {t.user.phone}\n"
+        msg += f"🆔 {t.id} | {t.user.phone}\n"
         msg += f"💬 {t.message[:100]}\n"
-        msg += "Reply: `reply [ID] [MSG]`\n\n"
+        msg += "Reply: reply [ID] [MSG]\n\n"
     return msg
 
 def reply_ticket(msg, admin_phone):
@@ -617,7 +617,7 @@ def reply_ticket(msg, admin_phone):
     try:
         parts = msg.split()
         if len(parts) < 3:
-            return "⚠️ Usage: `reply [ID] [MSG]`"
+            return "⚠️ Usage: reply [ID] [MSG]"
         ticket_id = parts[1]
         reply_msg = " ".join(parts[2:])
         ticket = SupportTicket.get_or_none(SupportTicket.id == ticket_id)
@@ -630,7 +630,7 @@ def reply_ticket(msg, admin_phone):
         ticket.save()
         log_admin_action(admin_phone, f"Replied to ticket {ticket_id}: {reply_msg[:30]}")
         notifications.send_ticket_reply(ticket.user, reply_msg)
-        return f"✅ Ticket `{ticket_id}` replied."
+        return f"✅ Ticket {ticket_id} replied."
     except Exception as e:
         return f"⚠️ Error: {str(e)}"
 

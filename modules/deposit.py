@@ -162,7 +162,7 @@ def handle_flow(user, msg, session):
                     f"Amount: {val}\n"
                     f"Ref: {session['sender_info']}"
                 )
-            notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_msg)
+            notifications.notify_admins(admin_msg)
 
             return (
                 "✅ *Submission Successful!*\n"
@@ -193,7 +193,7 @@ def show_crypto_address(user, session):
         f"📍 Address: `{addr}`\n\n"
         "⚠️ *CRITICAL:*\n"
         f"Send only {coin} via the *{net}* network. Wrong network = lost funds.\n\n"
-        "Reply **'PAID'** once you have sent the transaction."
+        "Reply 'PAID' once you have sent the transaction."
     ), session, False
 
 def show_fiat_details(session):

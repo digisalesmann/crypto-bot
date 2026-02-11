@@ -12,7 +12,7 @@ def create_alert(user, msg):
         # 1. Parse Input: "alert SOL 150"
         parts = msg.split()
         if len(parts) < 3:
-            return "⚠️ Usage: `alert [Coin] [Price]`\nEx: `alert SOL 25.5`"
+            return "⚠️ Usage: alert [Coin] [Price]\nEx: alert SOL 25.5"
 
         # 2. Format Symbol (Auto-add USDT if missing)
         raw_symbol = parts[1].upper()
@@ -46,13 +46,13 @@ def create_alert(user, msg):
             f"🔔 *Strategic Alert Set*\n"
             "━━━━━━━━━━━━━━━━\n"
             f"💎 *{symbol}*\n"
-            f"🎯 Target: `{target_price}`\n"
-            f"⚡ Current: `{current_price}`\n\n"
+            f"🎯 Target: {target_price}\n"
+            f"⚡ Current: {current_price}\n\n"
             f"{emoji} I will notify you when price *crosses {condition}* this level."
         )
 
     except ValueError:
-        return "⚠️ Invalid price. Usage: `alert SOL 20.5`"
+        return "⚠️ Invalid price. Usage: alert SOL 20.5"
     except Exception as e:
         return f"⚠️ System Error: {str(e)}"
 
@@ -66,7 +66,7 @@ def get_my_alerts(user):
     msg = "🔔 *Active Strategy Alerts*\n━━━━━━━━━━━━━━━━\n"
     for a in alerts:
         direction = "Upper Limit" if a.condition == 'above' else "Lower Limit"
-        msg += f"• *{a.symbol}*: {direction} `${a.target_price:,.2f}`\n"
+        msg += f"• *{a.symbol}*: {direction} ${a.target_price:,.2f}\n"
     
     return msg
 
@@ -95,7 +95,7 @@ def handle_alert_flow(user, msg, session):
         session['current'] = current_price
         session['step'] = 3
         return (
-            f"📈 *Current {coin}:* `${current_price:,.2f}`\n\n"
+            f"📈 *Current {coin}:* ${current_price:,.2f}\n\n"
             "At what price should I notify you? (Enter the numeric value):"
         ), session, False
 
@@ -111,10 +111,10 @@ def handle_alert_flow(user, msg, session):
             session['step'] = 4
             
             summary = (
-                f"🚀 *Confirm Alert*\n"
+                f"🚨 *Confirm Alert*\n"
                 f"━━━━━━━━━━━━━━━━\n"
                 f"Coin: {session['coin']}\n"
-                f"Notify when: *{direction}* `${target:,.2f}`\n\n"
+                f"Notify when: *{direction}* ${target:,.2f}\n\n"
                 "Type *YES* to activate."
             )
             return summary, session, False

@@ -72,10 +72,10 @@ def handle_flow(user, msg, session):
         summary = (
             "⚠️ *CONFIRM TICKET*\n"
             "━━━━━━━━━━━━━━━━\n"
-            f"🆔 ID: {session['ticket_id']}\n"
-            f"📂 Category: {session['category']}\n"
-            f"📄 Issue: {session['description'][:100]}...\n"
-            f"🖼 Proof: {image_status}\n\n"
+            f"ID: {session['ticket_id']}\n"
+            f"Category: {session['category']}\n\n"
+            f"Issue: {session['description'][:100]}...\n"
+            f"Proof: {image_status}\n\n"
             "Type *YES* to submit to our agents."
         )
         return summary, session, False
@@ -106,8 +106,7 @@ def handle_flow(user, msg, session):
                 f"Cat: {session['category']}"
             )
             from modules import notifications
-            import config
-            notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_alert)
+            notifications.notify_admins(admin_alert)
 
             return (
                 f"✅ *Ticket Submitted!*\n"

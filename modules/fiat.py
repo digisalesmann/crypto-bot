@@ -20,15 +20,15 @@ def get_fiat_dashboard(user):
         f"*Date:* {market_service.get_last_update_time()}\n\n"
         "💳 *USDT/NGN RATES*\n"
         "────────────────\n"
-        f"🟢 *We Buy:* `₦{usdt_ngn_buy:,.2f}`\n"
-        f"🔴 *We Sell:* `₦{usdt_ngn_sell:,.2f}`\n\n"
+        f"🟢 *We Buy:* ₦{usdt_ngn_buy:,.2f}\n"
+        f"🔴 *We Sell:* ₦{usdt_ngn_sell:,.2f}\n\n"
         "📊 *GLOBAL MARKET (REF)*\n"
         "────────────────\n"
-        f"₿ BTC/USDT: `${global_btc:,.2f}`\n"
+        f"BTC/USDT: ${global_btc:,.2f}\n"
         "━━━━━━━━━━━━━━━━\n\n"
         "💡 *How to Trade:*\n"
-        "• Type `swap` to start an instant conversion.\n"
-        "• Type `deposit` to fund your NGN wallet."
+        "• Type 'swap' to start an instant conversion.\n"
+        "• Type 'deposit' to fund your NGN wallet."
     )
     return msg
 

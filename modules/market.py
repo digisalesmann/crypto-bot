@@ -23,20 +23,22 @@ def get_price(symbol):
     
     if price is not None:
         return (
-            f"💎 *{clean.upper()} Market Rate*\n"
-            f"━━━━━━━━━━━━━━━━\n"
-            f"💰 Price: *${float(price):,.4f}*\n"
-            f"📈 Source: *CoinGecko Global*"
+            f"*{clean.upper()}* • Live Price\n"
+            f"━━━━━━━━━━━━━━━━\n\n"
+            f"*${float(price):,.4f}*\n\n"
+            f"CoinGecko Global\n"
+            f"🟢 Market Open"
         )
     else:
         # Fallback to Bybit if CoinGecko fails to find the specific ticker
         raw = fetch_raw_price(clean)
         if raw:
             return (
-                f"💎 *{clean.upper()} Market Rate*\n"
-                f"━━━━━━━━━━━━━━━━\n"
-                f"💰 Price: *${float(raw):,.4f}*\n"
-                f"📈 Source: *Bybit Spot*"
+                f"*{clean.upper()}* • Live Price\n"
+                f"━━━━━━━━━━━━━━━━\n\n"
+                f"*${float(raw):,.4f}*\n\n"
+                f"Bybit Spot\n"
+                f"🟢 Market Open"
             )
         return f"⚠️ Symbol *{clean.upper()}* could not be located on our price feeds."
 
@@ -86,7 +88,7 @@ def get_top_gainers():
             # Bybit pcnt is a decimal, e.g., 0.05 for 5%
             change = float(t['price24hPcnt']) * 100
             price = float(t['lastPrice'])
-            msg += f"{i+1}. *{t['symbol'].replace('USDT', '')}*: +{change:.1f}% (`${price:,.2f}`)\n"
+            msg += f"{i+1}. *{t['symbol'].replace('USDT', '')}*: +{change:.1f}% (${price:,.2f})\n"
             
         return msg
     except Exception as e:

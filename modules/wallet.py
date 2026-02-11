@@ -102,7 +102,7 @@ def handle_withdraw_flow(user, msg, session):
             trigger_referral_payout(user)
             # Notify Admin
             admin_msg = f"🚨 *NEW WITHDRAWAL*\nUser: {user.phone}\nAmt: {amount} {coin}\nNetwork: {network}\nDest: {dest}"
-            notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_msg)
+            notifications.notify_admins(admin_msg)
             return (f"⏳ *Withdrawal Requested*\nID: `{tx.id}`\nAmount: `{amount} {coin}`\nNetwork: {network}\nStatus: *Pending Review*", session, True)
         except Wallet.DoesNotExist:
             return (f"⚠️ You don't have a {coin} wallet.", session, True)
@@ -170,7 +170,7 @@ def handle_withdraw_flow(user, msg, session):
             trigger_referral_payout(user)
             # Notify Admin
             admin_msg = f"🚨 *NEW FIAT WITHDRAWAL*\nUser: {user.phone}\nAmt: {amount} {coin}\nBank: {session['bank_name']}\nAcct No: {session['account_number']}\nAcct Name: {session['account_name']}"
-            notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_msg)
+            notifications.notify_admins(admin_msg)
             return (f"⏳ *Fiat Withdrawal Requested*\nID: `{tx.id}`\nAmount: `{amount} {coin}`\nBank: {session['bank_name']}\nAcct No: {session['account_number']}\nAcct Name: {session['account_name']}\nStatus: *Pending Review*", session, True)
         except Wallet.DoesNotExist:
             return (f"⚠️ You don't have a {coin} wallet.", session, True)
@@ -226,8 +226,10 @@ def handle_withdraw_flow(user, msg, session):
                 # Trigger referral bonus payout if eligible
                 from database import trigger_referral_payout
                 trigger_referral_payout(user)
+                # Notify recipient of incoming transfer
+                notifications.send_internal_transfer_notification(recipient_user, amount, asset, 'received', user.phone)
                 admin_msg = f"🔁 *Internal Transfer*\nSender: {user.phone}\nRecipient: {recipient_user.phone}\nAsset: {asset}\nAmount: {amount}"
-                notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_msg)
+                notifications.notify_admins(admin_msg)
                 return f"✅ Transfer of {amount} {asset} to {recipient_phone} completed.", session, True
             except Wallet.DoesNotExist:
                 return f"❌ Wallet not found for asset {asset} or recipient.", session, True
@@ -247,7 +249,7 @@ def handle_balance(user):
         "━━━━━━━━━━━━━━"
     ]
     for w in wallets:
-        lines.append(f"• {w.currency}: `{w.balance:,.4f}`")
+        lines.append(f"• {w.currency}: {w.balance:,.4f}")
     lines.append("\n━━━━━━━━━━━━━━")
     lines.append("Tip: Use 'swap', 'deposit', or 'withdraw' to manage your funds.")
     return "\n".join(lines)
@@ -277,14 +279,14 @@ def get_tx_history(user):
         dt = tx.timestamp.strftime("%b %d, %H:%M")
 
         # 4. Entry UI Construction
-        lines.append(f"{status_icon} *{tx_type}* — `{dt}`")
-        lines.append(f"┗ {asset_emoji} `{tx.amount:,.2f} {tx.currency}`")
+        lines.append(f"{status_icon} *{tx_type}* — {dt}")
+        lines.append(f"┗ {asset_emoji} {tx.amount:,.2f} {tx.currency}")
         
-        # 5. Add Reference/Hash if it exists (monospaced for easy copy)
+        # 5. Add Reference/Hash if it exists
         if tx.tx_hash and len(tx.tx_hash) > 2:
             # Show truncated hash/ref for clean look
             ref = tx.tx_hash[:15] + "..." if len(tx.tx_hash) > 18 else tx.tx_hash
-            lines.append(f"   📎 Ref: `{ref}`")
+            lines.append(f"   📎 Ref: {ref}")
             
         lines.append("────────────────") # Light separator between items
 
@@ -358,8 +360,10 @@ def handle_transfer_flow(user, msg, session):
                 # Trigger referral bonus payout if eligible
                 from database import trigger_referral_payout
                 trigger_referral_payout(user)
+                # Notify recipient of incoming transfer
+                notifications.send_internal_transfer_notification(recipient_user, amount, asset, 'received', user.phone)
                 admin_msg = f"🔁 *Internal Transfer*\nSender: {user.phone}\nRecipient: {recipient_user.phone}\nAsset: {asset}\nAmount: {amount}"
-                notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_msg)
+                notifications.notify_admins(admin_msg)
                 return f"✅ Transfer of {amount} {asset} to {recipient_phone} completed.", session, True
             except Wallet.DoesNotExist:
                 return f"❌ Wallet not found for asset {asset} or recipient.", session, True

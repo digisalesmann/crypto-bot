@@ -138,7 +138,7 @@ def handle_flow(user, msg, session):
                 from modules import notifications
                 import config
                 admin_msg = f"🔄 *Swap Completed*\nUser: {user.phone}\n{amt} {from_asset} → {estimate:.2f} {to_asset}\nRate: {rate:.4f}"
-                notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_msg)
+                notifications.notify_admins(admin_msg)
                 return (f"✅ Swap Complete!\n{amt} {from_asset} → {estimate:.2f} {to_asset}\nRate: {rate:.4f}", session, True)
             except Wallet.DoesNotExist:
                 return (f"❌ You do not have a {from_asset} wallet.", session, True)

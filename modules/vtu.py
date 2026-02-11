@@ -93,7 +93,7 @@ def handle_flow(user, msg, session):
         session['target'] = msg.strip()
         if session.get('service') == 'Data':
             session['step'] = 4
-            return f"Confirm: Buy {session['plan']} Data for {session['target']} at ₦{session['plan_price']}? (Type 'yes' to proceed)", session, False
+            return f"Confirm: Buy {session['plan']} Data for {session['target']} at ₦{session['plan_price']} (Type 'yes' to proceed)", session, False
         else:
             session['step'] = 3.5
             return "Enter Airtime Amount (NGN):", session, False
@@ -106,7 +106,7 @@ def handle_flow(user, msg, session):
                 return "⚠️ Minimum airtime is ₦100.", session, False
             session['amount'] = amount
             session['step'] = 4
-            return f"Confirm: Buy ₦{amount} Airtime for {session['target']}? (Type 'yes' to proceed)", session, False
+            return f"Confirm: Buy ₦{amount} Airtime for {session['target']} (Type 'yes' to proceed)", session, False
         except ValueError:
             return "❌ Please enter a valid number.", session, False
 
@@ -117,6 +117,9 @@ def handle_flow(user, msg, session):
 
         service = session.get('service')
         amount = int(session.get('amount') if service == 'Airtime' else session.get('plan_price', 0))
+
+        # Send processing message to user
+        notifications.send_push(user, f"⏳ Processing your {service} purchase... Please wait.")
 
         # 1. Wallet Check
         try:
@@ -143,11 +146,20 @@ def handle_flow(user, msg, session):
             else:
                 resp = vtu_client.purchase_data(request_id, session['target'], provider_id, session['variation_id'])
 
-            if resp.get('status') == 'success' or 'success' in resp.get('message', '').lower():
+            if resp.get('code') == 'success' or resp.get('status') == 'success':
                 tx.status = 'completed'
                 tx.save()
+                # Notify Buyer
+                buyer_msg = (
+                    f"📱 *{service} Purchase Successful*\n"
+                    "━━━━━━━━━━━━━━━━\n"
+                    f"Amount: ₦{amount:,.2f}\n"
+                    f"Recipient: {session['target']}\n\n"
+                    "Thank you for using PPAY!"
+                )
+                notifications.send_push(user, buyer_msg)
                 # Admin Notification
-                notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), f"📱 VTU SUCCESS: {user.phone} bought {service} for {session['target']}")
+                notifications.notify_admins(f"📱 VTU SUCCESS: {user.phone} bought {service} for {session['target']}")
                 return f"✅ {service} successful! ₦{amount} has been sent to {session['target']}.", session, True
             else:
                 # Refund logic if API fails

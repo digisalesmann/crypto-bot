@@ -115,9 +115,7 @@ def handle_flow(user, msg, session):
         admin_alert = f"🚨 *SECURITY REPORT*\nUser: {user.phone}\nIssue: {report_desc}"
         try:
             from modules import notifications
-            import config
-            admin_user = type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]})
-            notifications.send_push(admin_user, admin_alert)
+            notifications.notify_admins(admin_alert)
         except Exception as e:
             print(f"[SECURITY] Failed to notify admin: {e}")
         return "✅ Report submitted. Our security team will investigate and contact you shortly.", session, True

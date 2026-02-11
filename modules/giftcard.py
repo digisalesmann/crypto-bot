@@ -22,7 +22,7 @@ def handle_flow(user, msg, session):
             "🎁 *Gift Card Redemption*\n"
             "━━━━━━━━━━━━━━━━\n"
             "What type of card are you redeeming?\n"
-            "_(e.g., Amazon, Steam, iTunes, Sephora)_",
+            "(e.g., Amazon, Steam, iTunes, Sephora)",
             session, False
         )
 
@@ -30,7 +30,7 @@ def handle_flow(user, msg, session):
     elif step == 2:
         session['card_type'] = msg.strip().upper()
         session['step'] = 3
-        return f"🌍 What is the *Country/Currency* for this {session['card_type']} card?\n_(e.g., USA, UK, EUR)_", session, False
+        return f"🌍 What is the *Country/Currency* for this {session['card_type']} card?\n(e.g., USA, UK, EUR)", session, False
 
     # STEP 3: Card Mode (Physical vs E-code)
     elif step == 3:
@@ -48,7 +48,7 @@ def handle_flow(user, msg, session):
         mode_map = {'1': 'PHYSICAL', '2': 'ECODE'}
         session['mode'] = mode_map.get(msg.strip(), msg.strip().upper())
         session['step'] = 5
-        return f"💰 Enter the *Face Value* (Amount) of the card:", session, False
+        return f"Enter the *Face Value* (Amount) of the card:", session, False
 
     # STEP 5: Card Code & Image Prompt
     elif step == 5:
@@ -56,7 +56,7 @@ def handle_flow(user, msg, session):
         session['step'] = 6
         return (
             "🔑 *Almost done!*\n"
-            "Please type the **Card Code** below.", session, False)
+            "Please type the *Card Code* below.", session, False)
 
     # STEP 6: Image Upload Step (for physical cards)
     elif step == 6:
@@ -109,7 +109,7 @@ def handle_flow(user, msg, session):
                         tx_hash=session.get('code', '')
                     )
             except Exception as e:
-                notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), f"Giftcard DB log error: {e}")
+                notifications.notify_admins(f"Giftcard DB log error: {e}")
 
             image_info = "\n📸 Image: Attached" if session.get('image') else "\n📸 Image: None"
             region_info = f"Region: {session.get('country', 'N/A')}\n"
@@ -121,7 +121,7 @@ def handle_flow(user, msg, session):
                 f"Code: {session['code']}"
                 f"{image_info}"
             )
-            notifications.send_push(type('Admin', (), {'phone': config.OWNER_PHONE.split(',')[0]}), admin_alert)
+            notifications.notify_admins(admin_alert)
             return (
                 "✅ *Submission Successful!*\n"
                 "Your card is now being verified by our agents. "
@@ -136,14 +136,14 @@ def handle_flow(user, msg, session):
 
 def giftcard_review_summary(session):
     summary = (
-        "⚠️ *REVIEW SUBMISSION*\n"
+        "⏳ *REVIEW SUBMISSION*\n"
         "━━━━━━━━━━━━━━━━\n"
-        f"🎁 Type: {session.get('card_type', '')}\n"
-        f"🌍 Region: {session.get('country', '')}\n"
-        f"📑 Mode: {session.get('mode', '')}\n"
-        f"💰 Value: {session.get('amount', '')}\n"
-        f"🔑 Code: `{session.get('code', '')}`\n"
-        f"📸 Image: {'Attached' if session.get('image') else 'None'}\n\n"
+        f"Type: {session.get('card_type', '')}\n"
+        f"Region: {session.get('country', '')}\n"
+        f"Mode: {session.get('mode', '')}\n"
+        f"Value: {session.get('amount', '')}\n"
+        f"Code: `{session.get('code', '')}`\n"
+        f"Image: {'Attached' if session.get('image') else 'None'}\n\n"
         "Is this correct? Type *YES* to submit or *CANCEL*."
     )
     return summary

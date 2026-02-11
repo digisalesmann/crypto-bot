@@ -117,7 +117,7 @@ def send_whatsapp(to_number, body_text):
     """
     try:
         client.messages.create(
-            from_=twilio_phone,
+            from_=f"whatsapp:{twilio_phone}",
             body=body_text,
             to=f"whatsapp:{to_number}"
         )

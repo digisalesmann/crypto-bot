@@ -104,6 +104,13 @@ def send_single_direct(phone, text):
         client.messages.create(from_=get_sender(), body=text, to=f"whatsapp:{phone}")
     except: pass
 
+def notify_admins(message_body):
+    """Sends a notification to ALL admin phones configured in OWNER_PHONE."""
+    import config
+    admin_phones = [p.strip() for p in config.OWNER_PHONE.split(',') if p.strip()]
+    for phone in admin_phones:
+        send_single_direct(phone, message_body)
+
 # --- TRANSACTIONAL NOTIFICATIONS ---
 
 def send_deposit_confirmation(user, amount, currency):
@@ -112,7 +119,7 @@ def send_deposit_confirmation(user, amount, currency):
         "━━━━━━━━━━━━━━━━\n"
         f"Your account has been credited with:\n"
         f"✅ *{amount:,.2f} {currency}*\n\n"
-        "Type `balance` to view your updated funds."
+        "Type balance to view your updated funds."
     )
     send_push(user, msg)
 
@@ -121,7 +128,7 @@ def send_withdrawal_processed(user, amount, currency, tx_hash):
         "✅ *Withdrawal Successful*\n"
         "━━━━━━━━━━━━━━━━\n"
         f"Sent: *{amount:,.2f} {currency}*\n"
-        f"Ref/Hash: `{tx_hash}`\n\n"
+        f"Ref/Hash: {tx_hash}\n\n"
         "The funds are on their way. Thank you for using PPAY!"
     )
     send_push(user, msg)
@@ -134,14 +141,14 @@ def send_internal_transfer_notification(user, amount, coin, direction, other_par
         msg = (
             f"💸 *Transfer Sent*\n"
             "━━━━━━━━━━━━━━━━\n"
-            f"You successfully sent `{amount} {coin}` to {other_party}.\n\n"
+            f"You successfully sent {amount} {coin} to {other_party}\n\n"
             "Transaction processed instantly."
         )
     else:
         msg = (
             f"💸 *Transfer Received*\n"
             "━━━━━━━━━━━━━━━━\n"
-            f"You received `{amount} {coin}` from {other_party}.\n\n"
+            f"You received {amount} {coin} from {other_party}\n\n"
             "Funds are now available in your PPAY wallet."
         )
     send_push(user, msg)
